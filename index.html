@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Background Removal Tool - Enhanced UI/UX</title>
+		<style>
+			*, *::before, *::after { box-sizing: border-box; }
+			body {
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				background: #f8f9fa;
+				margin: 0; padding: 20px;
+				color: #212529;
+				max-width: 900px;
+				margin-left: auto; margin-right: auto;
+				user-select: none;
+			}
+			h1 {
+				text-align: center;
+				font-weight: 700;
+				margin-bottom: 10px;
+			}
+			#uploadArea {
+				border: 3px dashed #6c757d;
+				border-radius: 12px;
+				padding: 40px;
+				margin: 0 auto 25px;
+				text-align: center;
+				color: #6c757d;
+				font-size: 1.25rem;
+				cursor: pointer;
+				transition: background-color 0.3s ease, border-color 0.3s ease;
+				position: relative;
+				outline-offset: 4px;
+			}
+			#uploadArea:focus {
+				border-color: #0d6efd;
+				background-color: #e7f1ff;
+				outline: none;
+			}
+			#uploadArea.dragover {
+				background-color: #dde9ff;
+				border-color: #0d6efd;
+				color: #0d6efd;
+			}
+			#uploadArea svg {
+				width: 48px;
+				height: 48px;
+				margin-bottom: 8px;
+				fill: currentColor;
+			}
+			#upload { display: none; }
+			#canvas {
+				display: block;
+				margin: 0 auto;
+				max-width: 100%;
+				max-height: 60vh;
+				border-radius: 10px;
+				box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+				background: none;
+				user-select: none;
+			}
+			#controls {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 20px;
+				justify-content: center;
+				margin-top: 20px;
+			}
+			.control-group {
+				display: flex;
+				flex-direction: column;
+				min-width: 150px;
+				max-width: 280px;
+			}
+			.control-group label {
+				font-weight: 600;
+				margin-bottom: 6px;
+				color: #495057;
+			}
+			input[type="range"] {
+				width: 100%;
+				cursor: pointer;
+			}
+			input[type="color"], input[type="text"], select {
+				padding: 6px 10px;
+				border-radius: 6px;
+				border: 1.5px solid #ced4da;
+				font-size: 1rem;
+				transition: border-color 0.3s ease;
+			}
+			input[type="color"]:focus, input[type="text"]:focus, select:focus {
+				outline: none;
+				border-color: #0d6efd;
+			}
+			input[type="text"] { user-select: text; }
+			#thresholdValue {
+				font-weight: 700;
+				margin-left: 8px;
+				min-width: 30px;
+				text-align: center;
+				display: inline-block;
+			}
+			button {
+				padding: 12px 24px;
+				font-size: 1rem;
+				border: none;
+				border-radius: 8px;
+				cursor: pointer;
+				font-weight: 600;
+				transition: background-color 0.3s ease;
+				user-select: none;
+				min-width: 100px;
+			}
+			button:disabled {
+				background-color: #adb5bd;
+				cursor: not-allowed;
+			}
+			button:not(:disabled) {
+				background-color: #0d6efd;
+				color: white;
+			}
+			button:not(:disabled):hover, button:not(:disabled):focus {
+				background-color: #0b5ed7;
+				outline: none;
+			}
+			#buttonRow {
+				display: flex;
+				gap: 15px;
+				justify-content: center;
+				margin-top: 15px;
+				flex-wrap: wrap;
+			}
+			#viewToggle {
+				display: flex;
+				justify-content: center;
+				margin-top: 20px;
+				gap: 15px;
+			}
+			#viewToggle button {
+				background-color: #6c757d;
+				color: white;
+				min-width: 120px;
+			}
+			#viewToggle button.active {
+				background-color: #0d6efd;
+			}
+			#loadingSpinner {
+				display: none;
+				margin: 20px auto 0;
+				border: 5px solid #e9ecef;
+				border-top: 5px solid #0d6efd;
+				border-radius: 50%;
+				width: 40px;
+				height: 40px;
+				animation: spin 1s linear infinite;
+			}
+			@keyframes spin { to { transform: rotate(360deg); } }
+			#toastContainer {
+				position: fixed;
+				bottom: 30px;
+				right: 30px;
+				z-index: 9999;
+				max-width: 320px;
+			}
+			.toast {
+				background-color: #212529dd;
+				color: white;
+				padding: 14px 24px;
+				border-radius: 25px;
+				margin-top: 10px;
+				min-width: 220px;
+				font-weight: 600;
+				text-align: center;
+				opacity: 0;
+				transform: translateY(20px);
+				animation: toastFadeIn 0.5s forwards, toastFadeOut 0.5s 2.5s forwards;
+			}
+			@keyframes toastFadeIn {
+				to { opacity: 1; transform: translateY(0); }
+			}
+			@keyframes toastFadeOut {
+				to { opacity: 0; transform: translateY(20px); }
+			}
+			@media (max-width: 600px) {
+				body { padding: 12px 10px; }
+				#controls { flex-direction: column; gap: 12px; }
+				.control-group { max-width: 100%; min-width: auto; }
+				#buttonRow { flex-direction: column; }
+				#buttonRow button { width: 100%; min-width: auto; }
+				#viewToggle { flex-direction: column; }
+				#viewToggle button { width: 100%; min-width: auto; }
+				#toastContainer { max-width: 95vw; right: 2vw; bottom: 15px; }
+			}
+		</style>
+	</head>
+	<body>
+		
+		<h1>Background Removal Tool</h1>
+		
+		<div id="uploadArea" tabindex="0" aria-label="Upload image by click or drag and drop">
+			<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+				<path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+			</svg>
+			Click or Drag & Drop Image Here<br />
+			<small>(PNG or JPEG)</small>
+			<input type="file" id="upload" accept="image/png, image/jpeg" aria-hidden="true" />
+		</div>
+		
+		<canvas id="canvas" role="img" aria-label="Image preview"></canvas>
+		<div id="loadingSpinner" aria-live="polite" aria-atomic="true" role="status"></div>
+		
+		<div id="controls" aria-label="Background removal controls">
+			<div class="control-group">
+				<label for="thresholdRange" title="Adjust how close the color has to be to remove">Threshold: <span id="thresholdValue">30</span></label>
+				<input type="range" id="thresholdRange" min="0" max="255" value="30" aria-valuemin="0" aria-valuemax="255" aria-valuenow="30" aria-label="Threshold slider" />
+			</div>
+			<div class="control-group">
+				<label for="colorPicker" title="Select the background color to remove">Background Color:</label>
+				<input type="color" id="colorPicker" value="#ffffff" aria-label="Background color picker" />
+			</div>
+			<div class="control-group">
+				<label for="filenameInput" title="Filename for the downloaded PNG image">Filename:</label>
+				<input type="text" id="filenameInput" value="transparent-image.png" aria-label="Filename input" />
+			</div>
+		</div>
+		
+		<div id="buttonRow" aria-label="Image action buttons">
+			<button id="undoBtn" disabled aria-disabled="true" title="Undo last removal step">Undo</button>
+			<button id="redoBtn" disabled aria-disabled="true" title="Redo last undone step">Redo</button>
+			<button id="resetBtn" disabled aria-disabled="true" title="Reset to original image">Reset</button>
+			<button id="downloadBtn" disabled aria-disabled="true" title="Download the transparent PNG">Download PNG</button>
+		</div>
+		
+		<div id="viewToggle" role="group" aria-label="Toggle image view modes">
+			<button id="viewOriginal" class="active" aria-pressed="true" title="Show original image">Original</button>
+			<button id="viewProcessed" aria-pressed="false" title="Show processed image">Processed</button>
+		</div>
+		
+		<div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+		
+		<script>
+			(() => {
+				// Elements
+				const uploadArea = document.getElementById('uploadArea');
+				const upload = document.getElementById('upload');
+				const canvas = document.getElementById('canvas');
+				const ctx = canvas.getContext('2d');
+				const loadingSpinner = document.getElementById('loadingSpinner');
+				const toastContainer = document.getElementById('toastContainer');
+				const thresholdRange = document.getElementById('thresholdRange');
+				const thresholdValue = document.getElementById('thresholdValue');
+				const colorPicker = document.getElementById('colorPicker');
+				const filenameInput = document.getElementById('filenameInput');
+				const undoBtn = document.getElementById('undoBtn');
+				const redoBtn = document.getElementById('redoBtn');
+				const resetBtn = document.getElementById('resetBtn');
+				const downloadBtn = document.getElementById('downloadBtn');
+				const viewOriginalBtn = document.getElementById('viewOriginal');
+				const viewProcessedBtn = document.getElementById('viewProcessed');
+				
+				// State variables
+				let originalImageData = null;
+				let processedImageData = null;
+				
+				// Undo/Redo history stacks
+				const undoStack = [];
+				const redoStack = [];
+				
+				// Current view mode: "original", "processed"
+				let currentView = "original";
+				
+				// Helper functions
+				function showToast(message) {
+					const toast = document.createElement('div');
+					toast.className = 'toast';
+					toast.textContent = message;
+					toastContainer.appendChild(toast);
+					setTimeout(() => toast.remove(), 3500);
+				}
+				function hexToRgb(hex) {
+					return [
+						parseInt(hex.substr(1, 2), 16),
+						parseInt(hex.substr(3, 2), 16),
+						parseInt(hex.substr(5, 2), 16)
+					];
+				}
+				function colorDistance(c1, c2) {
+					return Math.sqrt(
+					(c1[0] - c2[0]) ** 2 +
+					(c1[1] - c2[1]) ** 2 +
+					(c1[2] - c2[2]) ** 2
+					);
+				}
+				function showLoading(show) {
+					loadingSpinner.style.display = show ? 'block' : 'none';
+				}
+				function updateButtons() {
+					undoBtn.disabled = undoStack.length === 0;
+					undoBtn.setAttribute('aria-disabled', undoBtn.disabled);
+					redoBtn.disabled = redoStack.length === 0;
+					redoBtn.setAttribute('aria-disabled', redoBtn.disabled);
+					resetBtn.disabled = !originalImageData;
+					resetBtn.setAttribute('aria-disabled', resetBtn.disabled);
+					downloadBtn.disabled = !processedImageData;
+					downloadBtn.setAttribute('aria-disabled', downloadBtn.disabled);
+				}
+				function drawCanvas() {
+					if (!originalImageData) {
+						ctx.clearRect(0, 0, canvas.width, canvas.height);
+						return;
+					}
+					if (currentView === "original") {
+						ctx.putImageData(originalImageData, 0, 0);
+					} else if (currentView === "processed") {
+						if (processedImageData) {
+							ctx.putImageData(processedImageData, 0, 0);
+						} else {
+							ctx.putImageData(originalImageData, 0, 0);
+						}
+					}
+				}
+				function loadImage(file) {
+					showLoading(true);
+					const img = new Image();
+					img.onload = () => {
+						const maxDimension = 1200;
+						let w = img.width;
+						let h = img.height;
+						if (w > maxDimension || h > maxDimension) {
+							const scale = Math.min(maxDimension / w, maxDimension / h);
+							w = Math.floor(w * scale);
+							h = Math.floor(h * scale);
+						}
+						canvas.width = w;
+						canvas.height = h;
+						ctx.clearRect(0, 0, w, h);
+						ctx.drawImage(img, 0, 0, w, h);
+						originalImageData = ctx.getImageData(0, 0, w, h);
+						processedImageData = ctx.createImageData(originalImageData);
+						processedImageData.data.set(originalImageData.data);
+						undoStack.length = 0;
+						redoStack.length = 0;
+						currentView = "processed";
+						setActiveViewButton();
+						processImage();
+						updateButtons();
+						showLoading(false);
+						showToast("Image loaded successfully!");
+					};
+					img.onerror = () => {
+						showLoading(false);
+						alert("Invalid image file. Please upload a PNG or JPEG.");
+					};
+					img.src = URL.createObjectURL(file);
+				}
+				function processImage() {
+					if (!originalImageData) return;
+					showLoading(true);
+					const imgData = ctx.createImageData(originalImageData);
+					imgData.data.set(originalImageData.data);
+					const threshold = parseInt(thresholdRange.value);
+					const bgColor = hexToRgb(colorPicker.value);
+					const data = imgData.data;
+					for (let i = 0; i < data.length; i += 4) {
+						const pixelColor = [data[i], data[i + 1], data[i + 2]];
+						const alpha = data[i + 3];
+						if (alpha > 20) {
+							const dist = colorDistance(pixelColor, bgColor);
+							if (dist <= threshold) {
+								data[i + 3] = 0;
+							}
+						}
+					}
+					if (processedImageData) undoStack.push(processedImageData);
+					redoStack.length = 0;
+					processedImageData = imgData;
+					if (currentView !== "original") drawCanvas();
+					updateButtons();
+					showLoading(false);
+					showToast("Background removed with current settings.");
+				}
+				function undo() {
+					if (undoStack.length === 0) return;
+					redoStack.push(processedImageData);
+					processedImageData = undoStack.pop();
+					drawCanvas();
+					updateButtons();
+					showToast("Undo successful.");
+				}
+				function redo() {
+					if (redoStack.length === 0) return;
+					undoStack.push(processedImageData);
+					processedImageData = redoStack.pop();
+					drawCanvas();
+					updateButtons();
+					showToast("Redo successful.");
+				}
+				function reset() {
+					if (!originalImageData) return;
+					processedImageData = ctx.createImageData(originalImageData);
+					processedImageData.data.set(originalImageData.data);
+					undoStack.length = 0;
+					redoStack.length = 0;
+					currentView = "processed";
+					setActiveViewButton();
+					drawCanvas();
+					updateButtons();
+					showToast("Image reset to original.");
+				}
+				function setActiveViewButton() {
+					[viewOriginalBtn, viewProcessedBtn].forEach(btn => btn.classList.remove('active'));
+					[viewOriginalBtn, viewProcessedBtn].forEach(btn => btn.setAttribute('aria-pressed', 'false'));
+					if (currentView === "original") {
+						viewOriginalBtn.classList.add('active');
+						viewOriginalBtn.setAttribute('aria-pressed', 'true');
+					} else {
+						viewProcessedBtn.classList.add('active');
+						viewProcessedBtn.setAttribute('aria-pressed', 'true');
+					}
+				}
+				function downloadImage() {
+					if (!processedImageData) return;
+					const pngUrl = canvas.toDataURL('image/png');
+					const link = document.createElement('a');
+					link.href = pngUrl;
+					let filename = filenameInput.value.trim();
+					if (!filename) filename = "transparent-image.png";
+					if (!filename.toLowerCase().endsWith('.png')) filename += '.png';
+					filename = filename.replace(/[^\w\-_.]/g, '');
+					link.download = filename;
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+					showToast("Image downloaded.");
+				}
+				
+				// Upload handlers
+				uploadArea.addEventListener('click', () => upload.click());
+				upload.addEventListener('change', e => {
+					if (e.target.files.length > 0) {
+						loadImage(e.target.files[0]);
+						upload.value = "";
+					}
+				});
+				uploadArea.addEventListener('dragover', e => {
+					e.preventDefault();
+					uploadArea.classList.add('dragover');
+				});
+				uploadArea.addEventListener('dragleave', e => {
+					e.preventDefault();
+					uploadArea.classList.remove('dragover');
+				});
+				uploadArea.addEventListener('drop', e => {
+					e.preventDefault();
+					uploadArea.classList.remove('dragover');
+					if (e.dataTransfer.files.length > 0) {
+						const file = e.dataTransfer.files[0];
+						if (file.type.startsWith('image/')) {
+							loadImage(file);
+						} else {
+							alert("Please drop a valid image file (PNG or JPEG).");
+						}
+					}
+				});
+				
+				// Controls
+				thresholdRange.addEventListener('input', () => {
+					thresholdValue.textContent = thresholdRange.value;
+					
+					if (originalImageData) processImage();
+				});
+				colorPicker.addEventListener('input', () => {
+					if (originalImageData) processImage();
+				});
+				undoBtn.addEventListener('click', undo);
+				redoBtn.addEventListener('click', redo);
+				resetBtn.addEventListener('click', reset);
+				downloadBtn.addEventListener('click', downloadImage);
+				
+				// View toggle buttons
+				viewOriginalBtn.addEventListener('click', () => {
+					currentView = "original";
+					setActiveViewButton();
+					drawCanvas();
+				});
+				viewProcessedBtn.addEventListener('click', () => {
+					currentView = "processed";
+					setActiveViewButton();
+					drawCanvas();
+				});
+				
+				uploadArea.addEventListener('keydown', e => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						upload.click();
+					}
+				});
+				
+				thresholdValue.textContent = thresholdRange.value;
+			})();
+		</script>
+		
+	</body>
+</html>
